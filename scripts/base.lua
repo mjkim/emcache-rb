@@ -6,7 +6,12 @@ if arg_count >= 1 then
   prefix_name = ARGV[1]
 end
 
-local key = prefix_name..'::{'..KEYS[1]..'}'
 local value = KEYS[2]
 
-local lock_key = key..'::'..'LOCK'
+local function get_key(key)
+  return prefix_name..'::{'..key..'}'
+end
+
+local function get_lock_key(key)
+  return get_key(key)..'::'..'LOCK'
+end

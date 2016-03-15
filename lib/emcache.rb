@@ -16,28 +16,56 @@ class Emcache
     parse_option(options.dup)
 
     @lua = {
-      get: scripts('base', 'get'),
+      get_multi: scripts('base', 'get_base', 'get_multi'),
+      get: scripts('base', 'get_base', 'get'),
       set: scripts('base', 'set'),
       del: scripts('base', 'del')
     }
   end
 
   def call(method, keys, args)
-    logger.debug("method: #{method} sha: #{@lua[method].sha}"\
-                 " key: #{keys.inspect} args: #{args.inspect}")
-    redis.with do |conn|
-      begin
-        ret = conn.evalsha(@lua[method].sha, keys, args)
-        logger.debug("method: #{method} return: #{ret}")
-        ret
-      rescue Redis::CommandError => ex
-        logger.debug("exception: #{ex.inspect}")
-        raise ex unless ex.message.start_with? 'NOSCRIPT '
+    keys.each_slice(1000).flat_map do |chunk|
+      redis.with do |conn|
+        begin
+          logger.debug("method: #{method} sha: #{@lua[method].sha}"\
+                       " key_size: #{keys.size} chunk: #{chunk.inspect}"\
+                       " args: #{args.inspect}")
+          ret = conn.evalsha(@lua[method].sha, chunk, args)
+          logger.debug("method: #{method} return: #{ret}")
+          ret
+        rescue Redis::CommandError => ex
+          logger.debug("exception: #{ex.inspect}")
+          raise ex unless ex.message.start_with? 'NOSCRIPT '
 
-        load_script(conn, method)
-        retry
+          load_script(conn, method)
+          retry
+        end
       end
     end
+  end
+
+  def get_multi(keys)
+    ret = call :get_multi, keys, [prefix, block_given? ? timeout : 0]
+
+    result = []
+
+    ret.each_with_index do |arr, i|
+      status, data = arr
+
+      if status == STATUS_SUCCESS
+        result << data
+      elsif block_given?
+        key = keys[i]
+        value = yield(key)
+        result << value.to_s
+
+        _set(key, data, value) if status == STATUS_NOT_EXIST
+      else
+        result << nil
+      end
+    end
+
+    result
   end
 
   def get(key)

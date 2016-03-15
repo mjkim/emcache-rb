@@ -1,8 +1,9 @@
 local force = (ARGV[2] == '*')
 local lock_value = '*'
+local key = KEYS[1]
 
 if not force then
-  lock_value = redis.call('GET', lock_key)
+  lock_value = redis.call('GET', get_lock_key(key))
 end
 
 local ttl = 0
@@ -14,11 +15,11 @@ if lock_value ~= ARGV[2] then
   return {2, tonumber(lock_value)}
 end
 
-redis.call('SET', key, value)
-redis.call('DEL', lock_key)
+redis.call('SET', get_key(key), value)
+redis.call('DEL', get_lock_key(key))
 
 if ttl > 0 then
-  redis.call('PEXPIRE', key, ttl)
+  redis.call('PEXPIRE', get_key(key), ttl)
 end
 
 return {0, 1}
