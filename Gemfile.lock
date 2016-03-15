@@ -1,9 +1,9 @@
 PATH
   remote: .
   specs:
-    emcache (0.1.0)
-      connection_pool
-      redis
+    emcache (0.1.2.pre.alpha)
+      connection_pool (~> 2.2)
+      redis (~> 3.2)
 
 GEM
   remote: https://rubygems.org/
